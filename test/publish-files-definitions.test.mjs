@@ -26,9 +26,12 @@ const config = (files, server, token, cwd) => ({
 
 beforeEach(async (t) => {
 	const memSink = new Sink();
-	const server = fastify({ logger: false });
-	const service = new EikService({ customSink: memSink });
-	server.register(service.api());
+	const server = fastify({
+		ignoreTrailingSlash: true,
+		forceCloseConnections: true,
+	});
+	const service = new EikService({ sink: memSink });
+	await server.register(service.api());
 	const address = await server.listen({
 		host: "127.0.0.1",
 		port: 0,
@@ -236,9 +239,13 @@ test("when a recursive glob is specified", async (t) => {
 	// @ts-expect-error
 	const { files } = await cli.publish(config(pattern, address, token, cwd));
 
-	t.equal(files[4].pathname, "/client.js", "client.js should be packaged at /");
 	t.equal(
-		files[11].pathname,
+		files.find((f) => f.pathname.endsWith("client.js")).pathname,
+		"/client.js",
+		"client.js should be packaged at /",
+	);
+	t.equal(
+		files.find((f) => f.pathname.endsWith("checkboxes.svg")).pathname,
 		"/icons/checkboxes.svg",
 		"svgs should be packaged under /icons",
 	);
@@ -252,7 +259,11 @@ test("when a non recursive glob is specified", async (t) => {
 
 	const nested = files.filter((file) => file.pathname.includes("icons"));
 
-	t.equal(files[4].pathname, "/client.js", "client.js should be packaged at /");
+	t.equal(
+		files.find((f) => f.pathname.endsWith("client.js")).pathname,
+		"/client.js",
+		"client.js should be packaged at /",
+	);
 	t.equal(nested.length, 0, "no nested files should be present");
 });
 
